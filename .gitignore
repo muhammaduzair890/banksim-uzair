@@ -1,6 +1,8 @@
 .venv/
 models/
 logs/
+results/
+synthetic/
 __pycache__/
 *.pyc
 *.pyo
