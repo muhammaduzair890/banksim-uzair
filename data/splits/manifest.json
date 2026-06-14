@@ -1,0 +1,116 @@
+{
+  "n_splits": 5,
+  "segments": [
+    [
+      0,
+      37
+    ],
+    [
+      37,
+      69
+    ],
+    [
+      69,
+      98
+    ],
+    [
+      98,
+      127
+    ],
+    [
+      127,
+      154
+    ],
+    [
+      154,
+      180
+    ]
+  ],
+  "splits": [
+    {
+      "split": 0,
+      "train_step_range": [
+        0,
+        36
+      ],
+      "test_step_range": [
+        37,
+        68
+      ],
+      "train_rows": 101109,
+      "test_rows": 99481,
+      "train_fraud": 1480,
+      "test_fraud": 1280,
+      "train_fraud_rate": 0.014637668259007605,
+      "test_fraud_rate": 0.01286677858083453
+    },
+    {
+      "split": 1,
+      "train_step_range": [
+        0,
+        68
+      ],
+      "test_step_range": [
+        69,
+        97
+      ],
+      "train_rows": 200590,
+      "test_rows": 97247,
+      "train_fraud": 2760,
+      "test_fraud": 1160,
+      "train_fraud_rate": 0.013759409741263273,
+      "test_fraud_rate": 0.011928388536407293
+    },
+    {
+      "split": 2,
+      "train_step_range": [
+        0,
+        97
+      ],
+      "test_step_range": [
+        98,
+        126
+      ],
+      "train_rows": 297837,
+      "test_rows": 102063,
+      "train_fraud": 3920,
+      "test_fraud": 1160,
+      "train_fraud_rate": 0.013161561525263819,
+      "test_fraud_rate": 0.011365529133966277
+    },
+    {
+      "split": 3,
+      "train_step_range": [
+        0,
+        126
+      ],
+      "test_step_range": [
+        127,
+        153
+      ],
+      "train_rows": 399900,
+      "test_rows": 98289,
+      "train_fraud": 5080,
+      "test_fraud": 1080,
+      "train_fraud_rate": 0.012703175793948487,
+      "test_fraud_rate": 0.01098800476146873
+    },
+    {
+      "split": 4,
+      "train_step_range": [
+        0,
+        153
+      ],
+      "test_step_range": [
+        154,
+        179
+      ],
+      "train_rows": 498189,
+      "test_rows": 96454,
+      "train_fraud": 6160,
+      "test_fraud": 1040,
+      "train_fraud_rate": 0.012364785252183408,
+      "test_fraud_rate": 0.010782341841706927
+    }
+  ]
+}

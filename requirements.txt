@@ -1,0 +1,4 @@
+mostlyai-engine
+mostlyai-qa
+pandas
+numpy
