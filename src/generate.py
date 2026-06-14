@@ -27,8 +27,8 @@ def _collect_fraud(argn, n_generate: int, target_count: int) -> pd.DataFrame:
     pool: list[pd.DataFrame] = []
     collected = 0
     while collected < target_count:
-        batch = argn.sample(n=n_generate)
-        fraud_rows = batch[batch[TARGET_COL].astype(str) == "1"]
+        batch = argn.sample(n_samples=n_generate)
+        fraud_rows = batch[batch[TARGET_COL].astype(float).astype(int) == 1]
         pool.append(fraud_rows)
         collected += len(fraud_rows)
     return pd.concat(pool, ignore_index=True).head(target_count)
@@ -58,8 +58,8 @@ def generate_m3(workspace_dir: Path, device: str) -> pd.DataFrame:
     collected = 0
     n_generate = POOL_PER_MODEL * 3
     while collected < POOL_PER_MODEL:
-        batch = argn.sample(n=n_generate, rebalancing=rebal)
-        fraud_rows = batch[batch[TARGET_COL].astype(str) == "1"]
+        batch = argn.sample(n_samples=n_generate, rebalancing=rebal)
+        fraud_rows = batch[batch[TARGET_COL].astype(float).astype(int) == 1]
         pool.append(fraud_rows)
         collected += len(fraud_rows)
         n_generate = POOL_PER_MODEL * 4   # scale up if yield is low
