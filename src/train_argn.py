@@ -1,12 +1,25 @@
+import logging
 import multiprocessing as mp
+import time
 from pathlib import Path
 
-from .config import MODELS_DIR, M1_MAX_EPOCHS, M2_MAX_EPOCHS, M3_MAX_EPOCHS, GPU_M1, GPU_M2, GPU_M3
+from .config import LOGS_DIR, MODELS_DIR, M1_MAX_EPOCHS, M2_MAX_EPOCHS, M3_MAX_EPOCHS, GPU_M1, GPU_M2, GPU_M3
+
+logger = logging.getLogger(__name__)
 
 
-def _train_worker(df, workspace_dir: str, max_epochs: int, device: str) -> None:
+def _train_worker(df, workspace_dir: str, max_epochs: int, device: str, log_path: str) -> None:
     """Module-level function so multiprocessing spawn can import it."""
     from mostlyai.engine import TabularARGN
+
+    # Redirect this subprocess's output to its own log file so ARGN's
+    # epoch-by-epoch progress is captured rather than lost.
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+        handlers=[logging.FileHandler(log_path), logging.StreamHandler()],
+        force=True,
+    )
 
     ws = Path(workspace_dir)
     ws.mkdir(parents=True, exist_ok=True)
@@ -27,32 +40,38 @@ def train_all(
     ws_m2 = MODELS_DIR / f"fold_{fold}" / "m2"
     ws_m3 = MODELS_DIR / f"fold_{fold}" / "m3"
 
-    ctx = mp.get_context("spawn")
-    processes = [
-        ctx.Process(
-            target=_train_worker,
-            args=(m1_data, str(ws_m1), M1_MAX_EPOCHS, f"cuda:{GPU_M1}"),
-            name="argn-m1",
-        ),
-        ctx.Process(
-            target=_train_worker,
-            args=(m2_data, str(ws_m2), M2_MAX_EPOCHS, f"cuda:{GPU_M2}"),
-            name="argn-m2",
-        ),
-        ctx.Process(
-            target=_train_worker,
-            args=(m3_data, str(ws_m3), M3_MAX_EPOCHS, f"cuda:{GPU_M3}"),
-            name="argn-m3",
-        ),
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+    specs = [
+        ("argn-m1", m1_data, ws_m1, M1_MAX_EPOCHS, GPU_M1),
+        ("argn-m2", m2_data, ws_m2, M2_MAX_EPOCHS, GPU_M2),
+        ("argn-m3", m3_data, ws_m3, M3_MAX_EPOCHS, GPU_M3),
     ]
 
-    for p in processes:
+    ctx = mp.get_context("spawn")
+    processes = []
+    start_times = {}
+
+    for name, data, ws, epochs, gpu in specs:
+        log_path = LOGS_DIR / f"fold_{fold}_{name}.log"
+        p = ctx.Process(
+            target=_train_worker,
+            args=(data, str(ws), epochs, f"cuda:{gpu}", str(log_path)),
+            name=name,
+        )
         p.start()
+        processes.append(p)
+        start_times[name] = time.time()
+        logger.info(f"Started {name} on cuda:{gpu} (max_epochs={epochs}) — logs: {log_path}")
 
     failed = []
     for p in processes:
         p.join()
-        if p.exitcode != 0:
+        elapsed = time.time() - start_times[p.name]
+        if p.exitcode == 0:
+            logger.info(f"{p.name} finished in {elapsed / 60:.1f} min")
+        else:
+            logger.error(f"{p.name} failed after {elapsed / 60:.1f} min (exit code {p.exitcode})")
             failed.append(p.name)
 
     if failed:
