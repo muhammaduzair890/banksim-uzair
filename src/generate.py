@@ -32,21 +32,32 @@ def _gen_shard_worker(
     until `target_count` fraud rows are collected, write the shard to parquet.
 
     Module-level so multiprocessing 'spawn' can pickle it.
+
+    mostlyai writes generation output *inside* the workspace (SyntheticData/),
+    so concurrent workers sharing one workspace corrupt each other's parquet.
+    Each worker therefore generates from its own private copy of the workspace.
     """
+    import shutil
     from mostlyai.engine import TabularARGN
 
-    argn = TabularARGN(workspace_dir=workspace_dir, device=device, verbose=0)
-    argn._fitted = True  # model is already trained on disk; skip the fitted guard
+    private_ws = tempfile.mkdtemp(prefix="genws_")
+    try:
+        shutil.copytree(workspace_dir, private_ws, dirs_exist_ok=True)
 
-    pool: list[pd.DataFrame] = []
-    collected = 0
-    while collected < target_count:
-        batch = argn.sample(n_samples=n_generate)
-        fraud_rows = batch[batch[TARGET_COL].astype(float).astype(int) == 1]
-        pool.append(fraud_rows)
-        collected += len(fraud_rows)
+        argn = TabularARGN(workspace_dir=private_ws, device=device, verbose=0)
+        argn._fitted = True  # model is already trained on disk; skip the fitted guard
 
-    pd.concat(pool, ignore_index=True).head(target_count).to_parquet(out_path, index=False)
+        pool: list[pd.DataFrame] = []
+        collected = 0
+        while collected < target_count:
+            batch = argn.sample(n_samples=n_generate)
+            fraud_rows = batch[batch[TARGET_COL].astype(float).astype(int) == 1]
+            pool.append(fraud_rows)
+            collected += len(fraud_rows)
+
+        pd.concat(pool, ignore_index=True).head(target_count).to_parquet(out_path, index=False)
+    finally:
+        shutil.rmtree(private_ws, ignore_errors=True)
 
 
 def _parallel_generate(
@@ -91,11 +102,16 @@ def _parallel_generate(
         if p.exitcode != 0:
             failed.append(p.name)
 
-    if failed:
-        raise RuntimeError(f"{model_name} generation failed on: {failed}")
+    try:
+        if failed:
+            raise RuntimeError(f"{model_name} generation failed on: {failed}")
 
-    shards = [pd.read_parquet(o) for o in out_paths]
-    result = pd.concat(shards, ignore_index=True).head(target_count)
+        shards = [pd.read_parquet(o) for o in out_paths]
+        result = pd.concat(shards, ignore_index=True).head(target_count)
+    finally:
+        import shutil
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
     logger.info(
         f"{model_name}: collected {len(result):,} fraud rows in "
         f"{(time.time() - start) / 60:.1f} min"
