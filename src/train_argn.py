@@ -7,6 +7,9 @@ from .config import LOGS_DIR, MODELS_DIR, M1_MAX_EPOCHS, M2_MAX_EPOCHS, M3_MAX_E
 
 logger = logging.getLogger(__name__)
 
+MODEL_EPOCHS = {"m1": M1_MAX_EPOCHS, "m2": M2_MAX_EPOCHS, "m3": M3_MAX_EPOCHS}
+MODEL_GPUS = {"m1": GPU_M1, "m2": GPU_M2, "m3": GPU_M3}
+
 
 def _train_worker(df, workspace_dir: str, max_epochs: int, device: str, log_path: str) -> None:
     """Module-level function so multiprocessing spawn can import it."""
@@ -33,19 +36,20 @@ def _train_worker(df, workspace_dir: str, max_epochs: int, device: str, log_path
 
 
 def train_all(
-    m1_data, m2_data, m3_data, fold: int
-) -> tuple[Path, Path, Path]:
-    """Train M1, M2, M3 in parallel, each on its own GPU."""
-    ws_m1 = MODELS_DIR / f"fold_{fold}" / "m1"
-    ws_m2 = MODELS_DIR / f"fold_{fold}" / "m2"
-    ws_m3 = MODELS_DIR / f"fold_{fold}" / "m3"
+    datasets: dict, fold: int, models=("m1", "m2", "m3")
+) -> dict:
+    """Train the selected models in parallel, each on its own GPU.
 
+    `datasets` maps model name ("m1"/"m2"/"m3") to its training DataFrame.
+    Returns a dict mapping each trained model name to its workspace Path.
+    """
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
+    workspaces = {name: MODELS_DIR / f"fold_{fold}" / name for name in models}
+
     specs = [
-        ("argn-m1", m1_data, ws_m1, M1_MAX_EPOCHS, GPU_M1),
-        ("argn-m2", m2_data, ws_m2, M2_MAX_EPOCHS, GPU_M2),
-        ("argn-m3", m3_data, ws_m3, M3_MAX_EPOCHS, GPU_M3),
+        (f"argn-{name}", datasets[name], workspaces[name], MODEL_EPOCHS[name], MODEL_GPUS[name])
+        for name in models
     ]
 
     ctx = mp.get_context("spawn")
@@ -77,4 +81,4 @@ def train_all(
     if failed:
         raise RuntimeError(f"ARGN training failed for: {failed}")
 
-    return ws_m1, ws_m2, ws_m3
+    return workspaces

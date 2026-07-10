@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent.parent
@@ -19,17 +20,19 @@ M2_MAX_EPOCHS = 100
 M3_MAX_EPOCHS = 100
 
 # Generation
-POOL_PER_MODEL = 20_000   # fraud rows collected per pool
+POOL_PER_MODEL = 65_000   # fraud rows collected per pool (>= M_max(10) * max fold fraud 6160)
 M1_GEN_BATCH = 10_000     # per-shard batch for M1 (~100% fraud)
 M2_GEN_BATCH = 25_000     # per-shard batch for M2 (~13% fraud per batch)
 M3_GEN_BATCH = 100_000    # per-shard batch for M3 (natural ~1.3% fraud rate)
 M2_NONFR_FRAC = 0.10      # non-fraud fraction included in M2 training data
 
 # GPU assignment for training: one model per GPU, trained in parallel.
-GPU_M1 = 0
-GPU_M2 = 1
-GPU_M3 = 2
+# Overridable via env (e.g. GPU_M1=2) to pin a run to specific devices.
+GPU_M1 = int(os.environ.get("GPU_M1", 0))
+GPU_M2 = int(os.environ.get("GPU_M2", 1))
+GPU_M3 = int(os.environ.get("GPU_M3", 2))
 
 # GPUs used to shard generation. Generation is embarrassingly parallel, so every
 # model's fraud harvest is split across all of these GPUs at once.
-GEN_GPUS = [0, 1, 2, 3]
+# Override via env with a comma-separated list, e.g. GEN_GPUS="2,3".
+GEN_GPUS = [int(g) for g in os.environ.get("GEN_GPUS", "0,1,2,3").split(",")]

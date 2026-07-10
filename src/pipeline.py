@@ -35,6 +35,7 @@ def run_fold(
     fold: int,
     skip_training: bool = False,
     skip_generation: bool = False,
+    models=("m1", "m2", "m3"),
 ) -> dict:
     logger = _setup_logger(fold)
     logger.info(f"{'='*40} Fold {fold} {'='*40}")
@@ -48,40 +49,39 @@ def run_fold(
     )
 
     m1_data, m2_data, m3_data = build_argn_datasets(train)
+    all_datasets = {"m1": m1_data, "m2": m2_data, "m3": m3_data}
+    datasets = {name: all_datasets[name] for name in models}
     logger.info(
         f"ARGN datasets — M1 (fraud-only): {len(m1_data):,}  "
-        f"M2 (fraud+10%NF): {len(m2_data):,}  M3 (full): {len(m3_data):,}"
+        f"M2 (fraud+10%NF): {len(m2_data):,}  M3 (full): {len(m3_data):,}  "
+        f"| training models: {list(models)}"
     )
 
     # ── 2. Train ARGN models ──────────────────────────────────────────────────
     if not skip_training:
-        logger.info("Training M1, M2, M3 in parallel (one GPU each)…")
-        ws_m1, ws_m2, ws_m3 = train_all(m1_data, m2_data, m3_data, fold)
+        logger.info(f"Training {list(models)} in parallel (one GPU each)…")
+        workspaces = train_all(datasets, fold, models)
         logger.info("Training complete.")
     else:
-        ws_m1 = MODELS_DIR / f"fold_{fold}" / "m1"
-        ws_m2 = MODELS_DIR / f"fold_{fold}" / "m2"
-        ws_m3 = MODELS_DIR / f"fold_{fold}" / "m3"
+        workspaces = {name: MODELS_DIR / f"fold_{fold}" / name for name in models}
         logger.info("Skipping training — using saved models.")
 
     # ── 3. Generate synthetic data ────────────────────────────────────────────
     if not skip_generation:
         logger.info(f"Generating synthetic fraud pools (20k rows each)…")
-        pool_m1, pool_m2, pool_m3 = generate_all(ws_m1, ws_m2, ws_m3, fold)
+        pools = generate_all(workspaces, fold, models)
         logger.info(
-            f"Generated — M1: {len(pool_m1):,}  M2: {len(pool_m2):,}  M3: {len(pool_m3):,}"
+            "Generated — " + "  ".join(f"{k}: {len(v):,}" for k, v in pools.items())
         )
     else:
         synth_dir = SYNTH_DIR / f"fold_{fold}"
-        pool_m1 = pd.read_csv(synth_dir / "pool_m1.csv")
-        pool_m2 = pd.read_csv(synth_dir / "pool_m2.csv")
-        pool_m3 = pd.read_csv(synth_dir / "pool_m3.csv")
+        pools = {name: pd.read_csv(synth_dir / f"pool_{name}.csv") for name in models}
         logger.info("Skipping generation — loaded saved synthetic pools.")
 
     # ── 4. Evaluate quality ───────────────────────────────────────────────────
     logger.info("Evaluating synthetic data quality…")
     results = evaluate_all(
-        pools={"m1": pool_m1, "m2": pool_m2, "m3": pool_m3},
+        pools=pools,
         train=train,
         test=test,
         fold=fold,

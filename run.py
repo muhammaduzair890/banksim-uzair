@@ -2,7 +2,8 @@
 BankSim ARGN — entry point.
 
 Usage:
-    python run.py                          # all 5 folds
+    python run.py                          # all 5 folds, all models (m1,m2,m3)
+    python run.py --models m1              # only the M1 model, all folds
     python run.py --fold 0                 # single fold
     python run.py --fold 0 --skip-training # skip training, use saved models
     python run.py --fold 0 --skip-generation --skip-training  # quality eval only
@@ -23,9 +24,17 @@ def main() -> None:
     parser.add_argument("--fold", type=int, default=None, help="Run a single fold (0-4). Omit for all folds.")
     parser.add_argument("--skip-training", action="store_true", help="Skip ARGN training, load saved models.")
     parser.add_argument("--skip-generation", action="store_true", help="Skip generation, load saved pools.")
+    parser.add_argument(
+        "--models",
+        nargs="+",
+        choices=["m1", "m2", "m3"],
+        default=["m1", "m2", "m3"],
+        help="Which ARGN models to train/generate/evaluate. Default: all three.",
+    )
     args = parser.parse_args()
 
     folds = [args.fold] if args.fold is not None else list(range(N_FOLDS))
+    models = tuple(args.models)
 
     all_results: dict = {}
     for fold in folds:
@@ -34,6 +43,7 @@ def main() -> None:
             fold,
             skip_training=args.skip_training,
             skip_generation=args.skip_generation,
+            models=models,
         )
         all_results[f"fold_{fold}"] = results
 

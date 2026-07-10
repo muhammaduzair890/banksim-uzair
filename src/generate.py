@@ -140,20 +140,25 @@ def generate_m3(workspace_dir: Path) -> pd.DataFrame:
     return _parallel_generate(workspace_dir, POOL_PER_MODEL, M3_GEN_BATCH, "m3")
 
 
+GEN_FUNCS = {"m1": generate_m1, "m2": generate_m2, "m3": generate_m3}
+
+
 def generate_all(
-    ws_m1: Path, ws_m2: Path, ws_m3: Path, fold: int
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    workspaces: dict, fold: int, models=("m1", "m2", "m3")
+) -> dict:
+    """Generate a fraud pool for each selected model.
+
+    `workspaces` maps model name to its trained-model workspace Path.
+    Returns a dict mapping each model name to its generated pool DataFrame.
+    """
     out_dir = SYNTH_DIR / f"fold_{fold}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Each model is generated in turn, but each fully shards across all GPUs.
-    pool_m1 = generate_m1(ws_m1)
-    pool_m1.to_csv(out_dir / "pool_m1.csv", index=False)
+    pools = {}
+    for name in models:
+        pool = GEN_FUNCS[name](workspaces[name])
+        pool.to_csv(out_dir / f"pool_{name}.csv", index=False)
+        pools[name] = pool
 
-    pool_m2 = generate_m2(ws_m2)
-    pool_m2.to_csv(out_dir / "pool_m2.csv", index=False)
-
-    pool_m3 = generate_m3(ws_m3)
-    pool_m3.to_csv(out_dir / "pool_m3.csv", index=False)
-
-    return pool_m1, pool_m2, pool_m3
+    return pools
